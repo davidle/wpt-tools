@@ -1,7 +1,7 @@
 /*jshint nonew: false */
-(function() {
 "use strict";
-var runner;
+var runner, test_control;
+var loopsWithoutBreak = 0;
 var testharness_properties = {output:false,
                               timeout_multiplier:1};
 
@@ -191,14 +191,12 @@ VisualOutput.prototype = {
 
     on_manifest_wait: function() {
         this.clear();
-        this.instructions.style.display = "none";
         this.elem.style.display = "block";
         this.manifest_status.style.display = "inline";
     },
 
     on_start: function() {
         this.clear();
-        this.instructions.style.display = "none";
         this.elem.style.display = "block";
         this.meter.classList.remove("stopped");
         this.meter.classList.add("progress-striped", "active");
@@ -596,7 +594,7 @@ Runner.prototype = {
     },
 
     open_test_window: function() {
-        this.test_window = window.open("about:blank", 800, 600);
+        this.test_window = document.getElementById("iframe").contentWindow
     },
 
     manifest_loaded: function() {
@@ -676,7 +674,7 @@ Runner.prototype = {
     done: function() {
         this.done_flag = true;
         if (this.test_window) {
-            this.test_window.close();
+            this.test_window.src = "";
         }
         this.done_callbacks.forEach(function(callback) {
             callback();
@@ -687,6 +685,15 @@ Runner.prototype = {
         if (this.pause_flag) {
             return;
         }
+        
+        // Add a break after x tests for the lazy GC to catch up.
+        loopsWithoutBreak++;
+        if(loopsWithoutBreak > 25){
+          loopsWithoutBreak = 0;
+          setTimeout(this.run_next_test.bind(this),20000);
+          return;
+        }
+        
         var next_test = this.manifest_iterator.next();
         if (next_test === null||this.done_flag) {
             this.done();
@@ -751,7 +758,7 @@ function setup() {
     }
 
     runner = new Runner("/MANIFEST.json", options);
-    var test_control = new TestControl(document.getElementById("testControl"), runner);
+    test_control = new TestControl(document.getElementById("testControl"), runner);
     new ManualUI(document.getElementById("manualUI"), runner);
     new VisualOutput(document.getElementById("output"), runner);
 
@@ -784,4 +791,3 @@ window.completion_callback = function(tests, status) {
 };
 
 window.addEventListener("DOMContentLoaded", setup, false);
-})();
